@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diabetes Risk Estimator</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.5rem; }
+  label { display: block; margin-top: 1rem; font-weight: 600; font-size: 0.9rem; }
+  small { display: block; font-weight: 400; color: #666; }
+  input, select { width: 100%; padding: 0.55rem; margin-top: 0.3rem; font-size: 1rem; box-sizing: border-box; }
+  button { margin-top: 1.5rem; width: 100%; padding: 0.8rem; font-size: 1rem; cursor: pointer; }
+  #result { margin-top: 1.5rem; padding: 1rem; border-radius: 6px; display: none; }
+  .higher { background: #fdecea; }
+  .lower { background: #e8f5e9; }
+  .disclaimer { margin-top: 2rem; font-size: 0.8rem; color: #555; border-top: 1px solid #ddd; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<h1>Diabetes Risk Estimator</h1>
+<p>A machine-learning demo. Enter your details to see whether a model flags a higher or lower risk.</p>
+
+<form id="f">
+  <label>Age (1-80) <input name="age" type="number" step="any" min="1" max="80" required></label>
+  <label>Gender
+    <select name="gender"><option>Female</option><option>Male</option></select>
+  </label>
+  <label>Hypertension
+    <select name="hypertension"><option value="0">No</option><option value="1">Yes</option></select>
+  </label>
+  <label>Heart disease
+    <select name="heart_disease"><option value="0">No</option><option value="1">Yes</option></select>
+  </label>
+  <label>Smoking history
+    <select name="smoking_history">
+      <option value="never">Never</option>
+      <option value="former">Former</option>
+      <option value="current">Current</option>
+      <option value="unknown">Unknown</option>
+    </select>
+  </label>
+  <label>BMI (10-60) <input name="bmi" type="number" step="any" min="10" max="60" required></label>
+  <label>HbA1c level (3.5-9.0)
+    <small>From a blood test</small>
+    <input name="hba1c" type="number" step="any" min="3.5" max="9" required>
+  </label>
+  <label>Blood glucose, mg/dL (80-300)
+    <small>From a blood test</small>
+    <input name="glucose" type="number" min="80" max="300" required>
+  </label>
+  <button type="submit">Check risk</button>
+</form>
+
+<div id="result"></div>
+
+<p class="disclaimer">
+  This is a student project trained on a public Kaggle dataset. It is not medical advice or a diagnosis,
+  and it can be wrong. If you are worried about diabetes, see a doctor for a proper test.
+  The first request may take up to a minute while the server wakes up.
+</p>
+
+<script>
+  // Change this to your Render URL after deploying the backend.
+  const API_URL = "http://127.0.0.1:8000";
+
+  const form = document.getElementById("f");
+  const box = document.getElementById("result");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const d = new FormData(form);
+    const body = {
+      age: parseFloat(d.get("age")),
+      gender: d.get("gender"),
+      hypertension: parseInt(d.get("hypertension")),
+      heart_disease: parseInt(d.get("heart_disease")),
+      smoking_history: d.get("smoking_history"),
+      bmi: parseFloat(d.get("bmi")),
+      hba1c: parseFloat(d.get("hba1c")),
+      glucose: parseInt(d.get("glucose")),
+    };
+    box.style.display = "block";
+    box.className = "";
+    box.textContent = "Checking...";
+    try {
+      const r = await fetch(API_URL + "/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error("Server returned " + r.status);
+      const out = await r.json();
+      box.className = out.risk;
+      box.textContent = out.risk === "higher"
+        ? "The model flags a HIGHER risk. Please talk to a doctor about getting tested."
+        : "The model flags a LOWER risk. This is not a guarantee. Regular check-ups still matter.";
+    } catch (err) {
+      box.className = "";
+      box.textContent = "Could not reach the server. Try again in a minute.";
+    }
+  });
+</script>
+</body>
+</html>
