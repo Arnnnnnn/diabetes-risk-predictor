@@ -12,10 +12,10 @@ COLUMNS = bundle["columns"]
 
 app = FastAPI(title="Diabetes Risk Estimator")
 
-# "*" is fine for a demo. After deploying, replace it with your Vercel URL.
+# Only the deployed web form may call this API from a browser.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://diabetes-risk-predictor-web.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
