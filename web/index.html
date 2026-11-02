@@ -4,100 +4,400 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Diabetes Risk Estimator</title>
+<meta name="description" content="A machine-learning demo that flags a higher or lower diabetes risk from basic health details and two blood test values.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
-  h1 { font-size: 1.5rem; }
-  label { display: block; margin-top: 1rem; font-weight: 600; font-size: 0.9rem; }
-  small { display: block; font-weight: 400; color: #666; }
-  input, select { width: 100%; padding: 0.55rem; margin-top: 0.3rem; font-size: 1rem; box-sizing: border-box; }
-  button { margin-top: 1.5rem; width: 100%; padding: 0.8rem; font-size: 1rem; cursor: pointer; }
-  #result { margin-top: 1.5rem; padding: 1rem; border-radius: 6px; display: none; }
-  .higher { background: #fdecea; }
-  .lower { background: #e8f5e9; }
-  .disclaimer { margin-top: 2rem; font-size: 0.8rem; color: #555; border-top: 1px solid #ddd; padding-top: 1rem; }
+  :root {
+    --ink: #11303a; --ink-soft: #1c4653; --paper: #f2f6f5; --card: #fff;
+    --line: #d6e0de; --edge: #aebfbc; --text: #17262b; --muted: #3d555b;
+    --teal: #1b8f86; --high: #e0562f; --low: #1f9d6b; --amber: #e8a93a;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --body: "Figtree", "Segoe UI", system-ui, sans-serif;
+    --control: 44px;
+    --pad-x: clamp(1.25rem, 2.6vw, 2.5rem);
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: light; }
+  body { margin: 0; min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: minmax(0, 1fr) auto; font-family: var(--body); font-size: 16px; line-height: 1.5; color: var(--text); background: var(--paper); }
+
+  .shell { display: grid; grid-template-columns: minmax(340px, 36%) minmax(0, 1fr); min-height: 0; }
+
+  /* ---------- left panel ---------- */
+  .panel { background: var(--ink); color: #e8f1ef; padding: clamp(1.25rem, 4vh, 2.5rem) var(--pad-x); display: flex; flex-direction: column; gap: clamp(0.9rem, 2.4vh, 1.25rem); min-height: 0; overflow-x: hidden; overflow-y: auto; }
+  .head { margin-bottom: auto; }
+  .panel h1 { font-family: var(--display); font-weight: 700; font-size: clamp(1.9rem, 2.9vw, 2.6rem); line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 0.6rem; }
+  .intro { margin: 0; color: #d3e2df; font-size: 0.97rem; max-width: 38ch; }
+
+  .scale { background: var(--ink-soft); border-radius: 14px; padding: 1rem 1.25rem; }
+  .scale h2 { font-family: var(--display); font-weight: 500; font-size: 1rem; line-height: 1.3; margin: 0; }
+  .scale .sub { margin: 0.1rem 0 1.85rem; font-size: 0.82rem; line-height: 1.35; color: #c9dbd8; }
+  .track { position: relative; display: flex; height: 12px; }
+  .track > span { display: block; height: 100%; }
+  .s1 { width: 40%; background: var(--low); border-radius: 99px 0 0 99px; }
+  .s2 { width: 14.5%; background: var(--amber); }
+  .s3 { width: 45.5%; background: var(--high); border-radius: 0 99px 99px 0; }
+  .marker { position: absolute; top: -9px; left: 0; width: 0; opacity: 0; transition: left 0.35s ease, opacity 0.2s; pointer-events: none; }
+  .marker::before { content: ""; position: absolute; left: -2px; top: 0; width: 4px; height: 30px; border-radius: 2px; background: #fff; box-shadow: 0 0 0 2px var(--ink-soft); }
+  .marker b { position: absolute; left: 0; top: -26px; transform: translateX(-50%); background: #fff; color: var(--ink); font-size: 0.78rem; font-weight: 600; line-height: 1.5; padding: 0 0.5rem; border-radius: 6px; white-space: nowrap; }
+  .marker.on { opacity: 1; }
+  .legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.7rem; font-size: 0.76rem; line-height: 1.3; color: #c9dbd8; }
+  .legend div:nth-child(2) { text-align: center; }
+  .legend div:nth-child(3) { text-align: right; }
+  .legend strong { display: block; color: #e8f1ef; font-weight: 600; }
+
+  .result { border-radius: 14px; padding: 1rem 1.25rem; background: var(--ink-soft); min-height: 7.5rem; }
+  .result h2 { font-family: var(--display); font-weight: 700; font-size: 1.3rem; line-height: 1.15; margin: 0 0 0.35rem; }
+  .result p { margin: 0; font-size: 0.92rem; line-height: 1.45; color: #c9dbd8; }
+  .result .next { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid rgba(255,255,255,0.35); }
+  .result[data-risk="loading"] p { color: #dbe9e6; }
+  .result[data-risk="higher"] { background: var(--high); color: #fff; }
+  .result[data-risk="lower"] { background: var(--low); color: #fff; }
+  .result[data-risk="higher"] p, .result[data-risk="lower"] p { color: #fff; }
+  .result[data-risk="error"] { background: #fff; color: var(--text); }
+  .result[data-risk="error"] p { color: var(--muted); }
+
+  /* ---------- form ---------- */
+  .main { display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow-y: auto; padding: clamp(1rem, 3vh, 2rem) var(--pad-x); }
+  form { width: 100%; max-width: 780px; margin: 0 auto; display: grid; gap: clamp(0.9rem, 2.6vh, 1.75rem); }
+  .ghead { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.1rem 0.75rem; margin-bottom: 0.55rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--line); }
+  .ghead h2 { font-family: var(--display); font-weight: 700; font-size: 1.1rem; line-height: 1.3; margin: 0; }
+  .ghead span { color: var(--muted); font-size: 0.88rem; font-weight: 500; }
+
+  /* each row shares three tracks (label / control / hint) so every field lines up */
+  .row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto var(--control) auto; gap: 0.3rem 1.1rem; }
+  .field { display: grid; grid-row: span 3; grid-template-rows: subgrid; min-width: 0; }
+  .lab { align-self: end; font-weight: 600; font-size: 0.9rem; line-height: 1.25; }
+  .hint { align-self: start; font-size: 0.8rem; line-height: 1.3; font-weight: 500; color: var(--muted); }
+  input[type="number"], select { width: 100%; height: var(--control); margin: 0; font: inherit; font-size: 0.95rem; color: var(--text); background: var(--card); border: 1.5px solid var(--edge); border-radius: 10px; padding: 0 0.8rem; }
+  input[type="number"]::placeholder { color: #66797d; opacity: 1; }
+  select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
+  input[type="number"]:hover, select:hover { border-color: #b3c4c1; }
+  input:user-invalid { border-color: var(--high); }
+  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+  .pills { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; height: var(--control); }
+  .pills label { position: relative; display: block; }
+  .pills input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+  .pills span { display: flex; align-items: center; justify-content: center; height: 100%; border: 1.5px solid var(--edge); border-radius: 10px; background: var(--card); font-size: 0.95rem; font-weight: 500; line-height: 1; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .pills label:hover input:not(:checked) + span { border-color: #b3c4c1; }
+  .pills input:checked + span { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .pills input:focus-visible + span { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+  button.go { width: 100%; height: var(--control); padding: 0; font: inherit; font-size: 1rem; font-weight: 600; line-height: 1; color: #fff; background: var(--teal); border: 0; border-radius: 10px; cursor: pointer; transition: background 0.15s; }
+  button.go:hover { background: #167a72; }
+  button.go:disabled { background: #7aaaa6; cursor: progress; }
+
+
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.85rem; }
+  .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 0.8rem; align-items: start; font-size: 0.86rem; line-height: 1.35; color: #c9dbd8; }
+  .steps b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ink-soft); color: #e8f1ef; font-family: var(--display); font-size: 0.9rem; line-height: 1; }
+  .steps strong { display: block; color: #e8f1ef; font-weight: 600; font-size: 0.93rem; }
+  .steps li:last-child b { background: var(--teal); }
+
+  /* form groups become cards that share the full height */
+  form > section { background: var(--card); border: 1.5px solid #c3d2cf; box-shadow: 0 1px 0 rgba(17,48,58,0.04), 0 8px 24px -14px rgba(17,48,58,0.25); border-radius: 14px; padding: clamp(0.85rem, 2vh, 1.25rem) clamp(1rem, 2vw, 1.5rem); position: relative; }
+  form > section .ghead { border-bottom: 0; padding-bottom: 0; margin-bottom: clamp(0.5rem, 1.4vh, 0.8rem); }
+  input[type="number"], select, .pills span { background-color: #f6f9f8; }
+  input[type="number"]:focus, select:focus { background-color: #fff; }
+
+
+  /* ---------- background decoration ---------- */
+  .main { position: relative; isolation: isolate; overflow: hidden; background:
+      radial-gradient(circle at 1.4px 1.4px, rgba(17,48,58,0.16) 1.4px, transparent 1.6px) 0 0 / 22px 22px,
+      var(--paper); }
+  .main::before { content: ""; position: absolute; z-index: -1; width: 520px; height: 520px; right: -190px; top: -190px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(27,143,134,0.30), rgba(27,143,134,0) 68%); }
+  .main::after { content: ""; position: absolute; z-index: -1; width: 460px; height: 460px; left: -170px; bottom: -170px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(232,169,58,0.28), rgba(232,169,58,0) 68%); }
+  .deco { position: absolute; z-index: -1; pointer-events: none; color: var(--teal); }
+  .deco.drop { right: clamp(0.5rem, 2.2vw, 2.2rem); bottom: clamp(0.5rem, 3vh, 2rem); width: 96px; opacity: 0.22; }
+  .deco.pulse { left: clamp(0.5rem, 1.8vw, 1.8rem); top: clamp(0.5rem, 2.5vh, 1.6rem); width: 170px; opacity: 0.35; color: var(--ink); }
+  .deco.ring { right: clamp(0.5rem, 2vw, 2rem); top: clamp(0.5rem, 3vh, 2rem); width: 84px; opacity: 0.22; color: var(--high); }
+  .panel { position: relative; isolation: isolate; }
+  .panel::before { content: ""; position: absolute; z-index: -1; right: -120px; top: -120px; width: 340px; height: 340px; border-radius: 50%;
+      background: repeating-radial-gradient(circle, transparent 0 22px, rgba(255,255,255,0.06) 22px 24px); }
+  @media (max-width: 960px) { .deco { display: none; } .panel { overflow: hidden; } }
+
+  /* ---------- footer ---------- */
+  footer { background: #e4ecea; border-top: 1px solid var(--line); padding: 0.75rem var(--pad-x); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.75rem 2rem; }
+  footer p { margin: 0; max-width: 110ch; font-size: 0.78rem; line-height: 1.4; color: var(--muted); }
+  footer p strong { color: var(--text); }
+  .who { display: flex; align-items: center; gap: 0.75rem; }
+  .name { font-family: var(--display); font-weight: 700; font-size: 1rem; line-height: 1; white-space: nowrap; }
+  .links { display: flex; gap: 0.4rem; list-style: none; margin: 0; padding: 0; }
+  .links a { display: grid; place-items: center; width: 38px; height: 38px; border: 1.5px solid var(--line); border-radius: 50%; background: var(--card); color: var(--ink); transition: border-color 0.15s, color 0.15s; }
+  .links a:hover { border-color: var(--teal); color: var(--teal); }
+  .links svg { width: 18px; height: 18px; fill: currentColor; }
+
+  /* ---------- one screen on desktop: no page scroll, disclaimer always visible ---------- */
+  @media (min-width: 961px) and (min-height: 600px) {
+    html, body { height: 100%; }
+    body { height: 100dvh; overflow: hidden; }
+    :root { --control: clamp(44px, 5.6vh, 54px); }
+    .main { justify-content: center; }
+    form { max-width: 860px; gap: clamp(0.7rem, 1.8vh, 1.1rem); }
+    .ghead h2 { font-size: 1.2rem; }
+    .lab { font-size: 0.95rem; }
+    .hint { font-size: 0.8rem; }
+  }
+  @media (max-height: 800px) and (min-width: 961px) {
+    .steps { display: none; }
+    :root { --control: 40px; }
+    .intro { font-size: 0.92rem; }
+    .scale .sub { margin-bottom: 1.7rem; }
+    .result { min-height: 6.5rem; }
+    .ghead { margin-bottom: 0.4rem; padding-bottom: 0.3rem; }
+  }
+
+  @media (max-width: 960px) {
+    .shell { grid-template-columns: 1fr; }
+    .panel { overflow: hidden; }
+    .head { margin-bottom: 0; }
+    .main { padding: 1.5rem var(--pad-x); overflow: hidden; }
+    .row { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; gap: 0.9rem 1.1rem; }
+    .field { grid-row: auto; grid-template-rows: auto var(--control) auto; row-gap: 0.3rem; }
+  }
+  @media (max-width: 520px) {
+    .row { grid-template-columns: 1fr; }
+    footer { grid-template-columns: 1fr; }
+    .who { justify-content: space-between; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
-<h1>Diabetes Risk Estimator</h1>
-<p>A machine-learning demo. Enter your details to see whether a model flags a higher or lower risk.</p>
+<div class="shell">
 
-<form id="f">
-  <label>Age (1-80) <input name="age" type="number" step="any" min="1" max="80" required></label>
-  <label>Gender
-    <select name="gender"><option>Female</option><option>Male</option></select>
-  </label>
-  <label>Hypertension
-    <select name="hypertension"><option value="0">No</option><option value="1">Yes</option></select>
-  </label>
-  <label>Heart disease
-    <select name="heart_disease"><option value="0">No</option><option value="1">Yes</option></select>
-  </label>
-  <label>Smoking history
-    <select name="smoking_history">
-      <option value="never">Never</option>
-      <option value="former">Former</option>
-      <option value="current">Current</option>
-      <option value="unknown">Unknown</option>
-    </select>
-  </label>
-  <label>BMI (10-60) <input name="bmi" type="number" step="any" min="10" max="60" required></label>
-  <label>HbA1c level (3.5-9.0)
-    <small>From a blood test</small>
-    <input name="hba1c" type="number" step="any" min="3.5" max="9" required>
-  </label>
-  <label>Blood glucose, mg/dL (80-300)
-    <small>From a blood test</small>
-    <input name="glucose" type="number" min="80" max="300" required>
-  </label>
-  <button type="submit">Check risk</button>
-</form>
+  <aside class="panel">
+    <div class="head">
+      <h1>Diabetes risk estimator</h1>
+      <p class="intro">Answer eight questions and a machine-learning model flags a higher or lower risk. It is a demo, not a diagnosis.</p>
+    </div>
 
-<div id="result"></div>
+    <ol class="steps">
+      <li><b>1</b><div><strong>Enter your details</strong>Age, BMI, history and two blood test values.</div></li>
+      <li><b>2</b><div><strong>The model checks them</strong>Trained on about 100,000 public records.</div></li>
+      <li><b>3</b><div><strong>Read the flag</strong>Higher or lower risk, never a diagnosis.</div></li>
+    </ol>
 
-<p class="disclaimer">
-  This is a student project trained on a public Kaggle dataset. It is not medical advice or a diagnosis,
-  and it can be wrong. If you are worried about diabetes, see a doctor for a proper test.
-  The first request may take up to a minute while the server wakes up.
-</p>
+    <section class="scale" aria-labelledby="scale-title">
+      <h2 id="scale-title">Where your HbA1c sits</h2>
+      <p class="sub">Standard ranges. The marker follows your value.</p>
+      <div class="track" aria-hidden="true">
+        <span class="s1"></span><span class="s2"></span><span class="s3"></span>
+        <div class="marker" id="marker"><b id="markerVal"></b></div>
+      </div>
+      <div class="legend">
+        <div><strong>Typical</strong>below 5.7</div>
+        <div><strong>Prediabetes</strong>5.7 to 6.4</div>
+        <div><strong>Diabetes</strong>6.5 and above</div>
+      </div>
+    </section>
+
+    <section class="result" id="result" data-risk="empty" aria-live="polite">
+      <h2 id="rTitle">Your result will appear here</h2>
+      <p id="rBody">Fill in the form and choose Check my risk.</p>
+    </section>
+  </aside>
+
+  <main class="main">
+    <svg class="deco pulse" viewBox="0 0 170 40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M0 22h42l8-16 10 32 10-24 7 8h93"/></svg>
+    <svg class="deco ring" viewBox="0 0 84 84" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><circle cx="42" cy="42" r="38"/><circle cx="42" cy="42" r="24"/><circle cx="42" cy="42" r="10"/></svg>
+    <svg class="deco drop" viewBox="0 0 64 80" fill="currentColor" aria-hidden="true"><path d="M32 2C32 2 6 34 6 52a26 26 0 0 0 52 0C58 34 32 2 32 2z"/></svg>
+    <form id="f" novalidate>
+
+      <section aria-labelledby="g1">
+        <div class="ghead"><h2 id="g1">About you</h2><span>Basic details the model was trained on</span></div>
+        <div class="row">
+          <div class="field">
+            <label class="lab" for="age">Age</label>
+            <input id="age" name="age" type="number" inputmode="decimal" step="any" min="1" max="80" required placeholder="1 to 80">
+            <span class="hint">In years</span>
+          </div>
+          <div class="field">
+            <span class="lab" id="l-gender">Gender</span>
+            <div class="pills" role="radiogroup" aria-labelledby="l-gender">
+              <label><input type="radio" name="gender" value="Female" checked><span>Female</span></label>
+              <label><input type="radio" name="gender" value="Male"><span>Male</span></label>
+            </div>
+            <span class="hint">Female or male in the data</span>
+          </div>
+          <div class="field">
+            <label class="lab" for="bmi">BMI</label>
+            <input id="bmi" name="bmi" type="number" inputmode="decimal" step="any" min="10" max="60" required placeholder="10 to 60">
+            <span class="hint">Weight (kg) ÷ height (m) squared</span>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="g2">
+        <div class="ghead"><h2 id="g2">Health history</h2><span>Diagnosed by a doctor</span></div>
+        <div class="row">
+          <div class="field">
+            <label class="lab" for="smoking">Smoking</label>
+            <select id="smoking" name="smoking_history">
+              <option value="never">Never smoked</option>
+              <option value="former">Used to smoke</option>
+              <option value="current">Smokes now</option>
+              <option value="unknown">Not sure</option>
+            </select>
+            <span class="hint">Closest match to your history</span>
+          </div>
+          <div class="field">
+            <span class="lab" id="l-hyper">Hypertension</span>
+            <div class="pills" role="radiogroup" aria-labelledby="l-hyper">
+              <label><input type="radio" name="hypertension" value="0" checked><span>No</span></label>
+              <label><input type="radio" name="hypertension" value="1"><span>Yes</span></label>
+            </div>
+            <span class="hint">High blood pressure</span>
+          </div>
+          <div class="field">
+            <span class="lab" id="l-heart">Heart disease</span>
+            <div class="pills" role="radiogroup" aria-labelledby="l-heart">
+              <label><input type="radio" name="heart_disease" value="0" checked><span>No</span></label>
+              <label><input type="radio" name="heart_disease" value="1"><span>Yes</span></label>
+            </div>
+            <span class="hint">Any diagnosed heart condition</span>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="g3">
+        <div class="ghead"><h2 id="g3">Blood test results</h2><span>From a recent lab report</span></div>
+        <div class="row">
+          <div class="field">
+            <label class="lab" for="hba1c">HbA1c (%)</label>
+            <input id="hba1c" name="hba1c" type="number" inputmode="decimal" step="any" min="3.5" max="9" required placeholder="3.5 to 9.0">
+            <span class="hint">Average sugar over about 3 months</span>
+          </div>
+          <div class="field">
+            <label class="lab" for="glucose">Blood glucose (mg/dL)</label>
+            <input id="glucose" name="glucose" type="number" inputmode="numeric" step="1" min="80" max="300" required placeholder="80 to 300">
+            <span class="hint">Sugar level at the time of the test</span>
+          </div>
+          <div class="field">
+            <span class="lab" aria-hidden="true"></span>
+            <button class="go" id="go" type="submit">Check my risk</button>
+            <span class="hint" aria-hidden="true"></span>
+          </div>
+        </div>
+      </section>
+
+    </form>
+  </main>
+</div>
+
+<footer>
+  <p><strong>Not medical advice.</strong> A student project trained on a public Kaggle dataset of about 100,000 records. It can be wrong in both directions, and it flags generously, so false alarms are more common than misses. Only a doctor and a lab test can tell you if you have diabetes. The server is on a free plan, so the first check can take up to a minute.</p>
+  <div class="who">
+    <span class="name">Aryan Khanna</span>
+    <ul class="links">
+      <li><a href="https://www.linkedin.com/in/arnn/" target="_blank" rel="noopener" aria-label="Aryan Khanna on LinkedIn" title="LinkedIn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.125 2.062 2.062 0 0 1 0 4.125zM7.119 20.452H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg></a></li>
+      <li><a href="https://github.com/Arnnnnnn" target="_blank" rel="noopener" aria-label="Aryan Khanna on GitHub" title="GitHub profile">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23a11.5 11.5 0 0 1 3.003-.404c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.015 2.896-.015 3.286 0 .322.216.694.825.576C20.565 21.796 24 17.3 24 12.297c0-6.627-5.373-12-12-12"/></svg></a></li>
+      <li><a href="https://github.com/Arnnnnnn/diabetes-risk-predictor" target="_blank" rel="noopener" aria-label="Source code for this project" title="View the code">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.7 16.3 4.4 12l4.3-4.3 1.4 1.4L7.2 12l2.9 2.9-1.4 1.4zm6.6 0-1.4-1.4 2.9-2.9-2.9-2.9 1.4-1.4 4.3 4.3-4.3 4.3zM10.6 19l2.2-14h1.9l-2.2 14h-1.9z"/></svg></a></li>
+    </ul>
+  </div>
+</footer>
 
 <script>
-  // Change this to your Render URL after deploying the backend.
-  const API_URL = "http://127.0.0.1:8000";
+  const API_URL = "https://diabetes-risk-predictor-o1mp.onrender.com";
 
   const form = document.getElementById("f");
-  const box = document.getElementById("result");
+  const go = document.getElementById("go");
+  const result = document.getElementById("result");
+  const rTitle = document.getElementById("rTitle");
+  const rBody = document.getElementById("rBody");
+  const marker = document.getElementById("marker");
+  const markerVal = document.getElementById("markerVal");
+  const hba1c = document.getElementById("hba1c");
+
+  // HbA1c marker on the reference scale (3.5 to 9.0)
+  hba1c.addEventListener("input", () => {
+    const v = parseFloat(hba1c.value);
+    if (isNaN(v)) { marker.classList.remove("on"); return; }
+    marker.style.left = Math.min(100, Math.max(0, ((v - 3.5) / 5.5) * 100)) + "%";
+    markerVal.textContent = v;
+    marker.classList.add("on");
+  });
+
+  function show(risk, title, body, next) {
+    result.dataset.risk = risk;
+    rTitle.textContent = title;
+    rBody.textContent = body;
+    const old = result.querySelector(".next");
+    if (old) old.remove();
+    if (next) {
+      const n = document.createElement("p");
+      n.className = "next";
+      n.textContent = next;
+      result.appendChild(n);
+    }
+    if (window.matchMedia("(max-width: 960px)").matches) {
+      result.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!form.reportValidity()) return;
+
     const d = new FormData(form);
     const body = {
       age: parseFloat(d.get("age")),
       gender: d.get("gender"),
-      hypertension: parseInt(d.get("hypertension")),
-      heart_disease: parseInt(d.get("heart_disease")),
+      hypertension: parseInt(d.get("hypertension"), 10),
+      heart_disease: parseInt(d.get("heart_disease"), 10),
       smoking_history: d.get("smoking_history"),
       bmi: parseFloat(d.get("bmi")),
       hba1c: parseFloat(d.get("hba1c")),
-      glucose: parseInt(d.get("glucose")),
+      glucose: parseInt(d.get("glucose"), 10),
     };
-    box.style.display = "block";
-    box.className = "";
-    box.textContent = "Checking...";
+
+    go.disabled = true;
+    go.textContent = "Checking...";
+    show("loading", "Checking your answers", "This usually takes a second.");
+    const slow = setTimeout(() => {
+      rBody.textContent = "Waking the server. The first check can take up to a minute.";
+    }, 4000);
+    const ctrl = new AbortController();
+    const abort = setTimeout(() => ctrl.abort(), 90000);
+
     try {
       const r = await fetch(API_URL + "/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: ctrl.signal,
       });
+      if (r.status === 422) {
+        show("error", "Some values are out of range",
+          "Check that each number sits inside the range shown in its box, then try again.");
+        return;
+      }
       if (!r.ok) throw new Error("Server returned " + r.status);
       const out = await r.json();
-      box.className = out.risk;
-      box.textContent = out.risk === "higher"
-        ? "The model flags a HIGHER risk. Please talk to a doctor about getting tested."
-        : "The model flags a LOWER risk. This is not a guarantee. Regular check-ups still matter.";
+      if (out.risk === "higher") {
+        show("higher", "Higher risk flagged",
+          "Based on your answers, the model places you in the group more likely to have diabetes.",
+          "Next step: book a visit with a doctor and ask about a diabetes test.");
+      } else {
+        show("lower", "Lower risk flagged",
+          "Based on your answers, the model places you in the group less likely to have diabetes.",
+          "This is not a guarantee. Keep up regular check-ups, especially if you have symptoms or a family history.");
+      }
     } catch (err) {
-      box.className = "";
-      box.textContent = "Could not reach the server. Try again in a minute.";
+      show("error", "Could not reach the server",
+        "The server may still be waking up. Wait a minute, then choose Check my risk again.");
+    } finally {
+      clearTimeout(slow);
+      clearTimeout(abort);
+      go.disabled = false;
+      go.textContent = "Check my risk";
     }
   });
 </script>
